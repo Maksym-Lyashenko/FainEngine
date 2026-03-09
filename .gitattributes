@@ -1,4 +1,4 @@
-engine/thirdparty/**                  linguist-vendored
+engine/libs/**                  linguist-vendored
 
 *.hpp                    linguist-language=C++
 *.inl                    linguist-language=C++
