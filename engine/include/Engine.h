@@ -1,5 +1,8 @@
 #pragma once
 
+#include "vk/VulkanContext.h"
+#include "vk/ShaderModule.h"
+
 #include <memory>
 #include <chrono>
 
@@ -29,11 +32,15 @@ class Engine
 
   void SetApplication(Application* app);
   Application* GetApplication();
+  IContext& GetVulkanContext();
+  ShaderModule& GetShaderModule();
 
  private:
   std::unique_ptr<Application> m_application;
   std::chrono::steady_clock::time_point m_lastTimePoint;
   GLFWwindow* m_window = nullptr;
+  std::unique_ptr<IContext> m_vulkanContext;
+  ShaderModule m_shaderModule;
 };
 
 }  // namespace eng

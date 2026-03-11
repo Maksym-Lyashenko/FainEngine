@@ -43,9 +43,42 @@ bool Engine::Init(int width, int height, const char* name)
     return false;
   }
 
-  glfwMakeContextCurrent(m_window);
+  m_vulkanContext = eng::createVulkanContextWithSwapchain(m_window, {});
 
-  return m_application->Init();
+  try
+  {
+    return m_application->Init();
+  }
+  catch (const std::exception& e)
+  {
+    std::cout << "Application init failed: " << e.what() << '\n';
+
+    m_vulkanContext.reset();
+
+    if (m_window)
+    {
+      glfwDestroyWindow(m_window);
+      m_window = nullptr;
+    }
+
+    glfwTerminate();
+    return false;
+  }
+  catch (...)
+  {
+    std::cout << "Application init failed: unknown exception\n";
+
+    m_vulkanContext.reset();
+
+    if (m_window)
+    {
+      glfwDestroyWindow(m_window);
+      m_window = nullptr;
+    }
+
+    glfwTerminate();
+    return false;
+  }
 }
 
 void Engine::Run()
@@ -88,6 +121,16 @@ void Engine::SetApplication(Application* app)
 Application* Engine::GetApplication()
 {
   return m_application.get();
+}
+
+IContext& Engine::GetVulkanContext()
+{
+  return *m_vulkanContext;
+}
+
+ShaderModule& Engine::GetShaderModule()
+{
+  return m_shaderModule;
 }
 
 }  // namespace eng
