@@ -2,6 +2,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include "vk/VulkanAllocator.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -21,6 +23,7 @@ class VulkanSwapchain
   void create(
       VkPhysicalDevice gpu,
       VkDevice device,
+      VulkanAllocator* allocator,
       VkSurfaceKHR surface,
       GLFWwindow* window,
       uint32_t graphicsFamily,
@@ -37,6 +40,12 @@ class VulkanSwapchain
 
   uint32_t imageCount() const { return static_cast<uint32_t>(m_images.size()); }
 
+  VkFormat depthFormat() const { return m_depthFormat; }
+  VkImageView depthView() const { return m_depthImageView; }
+  bool hasDepth() const { return m_depthImage != VK_NULL_HANDLE; }
+
+  void transitionDepthForAttachment(VkCommandBuffer cmd);
+
   VkImage image(uint32_t index) const { return m_images[index]; }
   VkImageView imageView(uint32_t index) const { return m_imageViews[index]; }
   VkSemaphore renderCompleteSemaphore(uint32_t imageIndex) const
@@ -46,6 +55,10 @@ class VulkanSwapchain
 
   void transitionImageForColorAttachment(VkCommandBuffer cmd, uint32_t imageIndex);
   void transitionImageForPresent(VkCommandBuffer cmd, uint32_t imageIndex);
+
+  void createDepthResources();
+  void destroyDepthResources();
+  static VkFormat chooseDepthFormat(VkPhysicalDevice gpu);
 
  private:
   void createInternal(GLFWwindow* window);
@@ -69,6 +82,14 @@ class VulkanSwapchain
   std::vector<VkImageView> m_imageViews;
   std::vector<bool> m_imageInitialized;
   std::vector<VkSemaphore> m_renderCompleteSemaphores;
+
+  VulkanAllocator* m_allocator = nullptr;
+
+  VkImage m_depthImage = VK_NULL_HANDLE;
+  VmaAllocation m_depthAllocation = nullptr;
+  VkImageView m_depthImageView = VK_NULL_HANDLE;
+  VkFormat m_depthFormat = VK_FORMAT_UNDEFINED;
+  bool m_depthInitialized = false;
 };
 
 }  // namespace eng

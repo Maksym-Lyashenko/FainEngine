@@ -1,76 +1,88 @@
 #include "Game.h"
 
+#include "eng.h"
+
+#include <GLFW/glfw3.h>
+#include <glm/ext.hpp>
+#include <glm/glm.hpp>
+
 #include <array>
-#include <cstddef>
+
+using glm::mat4;
+using glm::vec3;
 
 bool Game::Init()
 {
   eng::IContext& ctx = eng::Engine::GetInstance().GetVulkanContext();
 
-  const std::array<Vertex, 3> vertices = {
-      Vertex{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-      Vertex{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-      Vertex{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-  };
+  auto vert = eng::ShaderLibrary::LoadModule(ctx, "source/main.vert.spv");
+  auto frag = eng::ShaderLibrary::LoadModule(ctx, "source/main.frag.spv");
 
-  m_vertexBuffer.create(
-      &ctx.allocator(),
-      sizeof(vertices),
-      VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-      eng::BufferMemoryUsage::GpuOnly);
+  m_pipelineSolid = eng::GraphicsPipelineBuilder(ctx)
+                        .Shaders(vert.get(), frag.get())
+                        .CullBack()
+                        .FillMode(VK_POLYGON_MODE_FILL)
+                        .PushConstants(sizeof(glm::mat4), VK_SHADER_STAGE_VERTEX_BIT)
+                        .Depth(ctx.getDepthFormat(), true, true, VK_COMPARE_OP_LESS)
+                        .Build();
 
-  ctx.uploadContext().uploadBuffer(
-      &ctx.allocator(), vertices.data(), sizeof(vertices), m_vertexBuffer);
-
-  const eng::ShaderModuleHandle vert = eng::loadShaderModule(&ctx, "source/main.vert.spv");
-  const eng::ShaderModuleHandle frag = eng::loadShaderModule(&ctx, "source/main.frag.spv");
-
-  const std::array<VkVertexInputBindingDescription, 1> bindings = {VkVertexInputBindingDescription{
-      .binding = 0,
-      .stride = sizeof(Vertex),
-      .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+  const uint32_t isWireframe = 1;
+  const std::array<VkSpecializationMapEntry, 1> specEntries = {VkSpecializationMapEntry{
+      .constantID = 0,
+      .offset = 0,
+      .size = sizeof(uint32_t),
   }};
 
-  const std::array<VkVertexInputAttributeDescription, 2> attributes = {
-      VkVertexInputAttributeDescription{
-          .location = 0,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32_SFLOAT,
-          .offset = static_cast<uint32_t>(offsetof(Vertex, position)),
-      },
-      VkVertexInputAttributeDescription{
-          .location = 1,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32B32_SFLOAT,
-          .offset = static_cast<uint32_t>(offsetof(Vertex, color)),
-      }};
+  m_pipelineWireframe =
+      eng::GraphicsPipelineBuilder(ctx)
+          .Shaders(vert.get(), frag.get())
+          .CullBack()
+          .FillMode(VK_POLYGON_MODE_LINE)
+          .PushConstants(sizeof(glm::mat4), VK_SHADER_STAGE_VERTEX_BIT)
+          .Depth(ctx.getDepthFormat(), true, false, VK_COMPARE_OP_LESS_OR_EQUAL)
+          .Specialization(
+              VK_SHADER_STAGE_FRAGMENT_BIT, specEntries, &isWireframe, sizeof(isWireframe))
+          .Build();
 
-  eng::RenderPipelineDesc rpDesc{};
-  rpDesc.smVert = vert;
-  rpDesc.smFrag = frag;
-  rpDesc.colorFormats[0] = ctx.getSwapchainFormat();
-  rpDesc.vertexBindings = bindings;
-  rpDesc.vertexAttributes = attributes;
-  rpDesc.cullMode = VK_CULL_MODE_NONE;
-
-  m_trianglePipeline = ctx.createRenderPipeline(rpDesc);
-
-  ctx.destroyShaderModule(frag);
-  ctx.destroyShaderModule(vert);
-
-  return m_trianglePipeline != eng::kInvalidHandle;
+  return m_pipelineSolid.valid() && m_pipelineWireframe.valid();
 }
 
 void Game::Update(float DeltaTime)
 {
   (void)DeltaTime;
 
-  if (m_trianglePipeline == eng::kInvalidHandle || !m_vertexBuffer.isValid())
+  if (!m_pipelineSolid.valid() || !m_pipelineWireframe.valid())
   {
     return;
   }
 
   eng::IContext& ctx = eng::Engine::GetInstance().GetVulkanContext();
+
+  GLFWwindow* window = eng::Engine::GetInstance().GetWindow();
+
+  if (window == nullptr)
+  {
+    return;
+  }
+
+  int width = 0;
+  int height = 0;
+  glfwGetFramebufferSize(window, &width, &height);
+  if (width == 0 || height == 0)
+  {
+    return;
+  }
+
+  const float ratio = static_cast<float>(width) / static_cast<float>(height);
+
+  const mat4 m = glm::rotate(
+      glm::translate(mat4(1.0f), vec3(0.0f, 0.0f, -3.5f)),
+      static_cast<float>(glfwGetTime()),
+      vec3(1.0f, 1.0f, 1.0f));
+
+  mat4 p = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 1000.0f);
+
+  const mat4 mvp = p * m;
 
   eng::ICommandBuffer& cmd = ctx.acquireCommandBuffer();
 
@@ -78,15 +90,31 @@ void Game::Update(float DeltaTime)
   beginDesc.color[0].loadOp = eng::LoadOp::Clear;
   beginDesc.color[0].clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
+  beginDesc.useDepth = true;
+  beginDesc.depth.loadOp = eng::LoadOp::Clear;
+  beginDesc.depth.clearDepth = 1.0f;
+
   eng::RenderingTargets targets{};
   targets.color[0] = ctx.getCurrentSwapchainTexture();
 
   cmd.cmdBeginRendering(beginDesc, targets);
-  cmd.cmdBindRenderPipeline(m_trianglePipeline);
-  cmd.cmdBindVertexBuffer(m_vertexBuffer.handle());
-  cmd.cmdPushDebugGroupLabel("Render Triangle", 0xff0000ff);
-  cmd.cmdDraw(3);
+
+  cmd.cmdPushDebugGroupLabel("Solid cube", 0xff0000ff);
+  {
+    cmd.cmdBindRenderPipeline(m_pipelineSolid.get());
+    cmd.cmdPushConstants(mvp);
+    cmd.cmdDraw(36);
+  }
   cmd.cmdPopDebugGroupLabel();
+
+  cmd.cmdPushDebugGroupLabel("Wireframe cube", 0xff0000ff);
+  {
+    cmd.cmdBindRenderPipeline(m_pipelineWireframe.get());
+    cmd.cmdPushConstants(mvp);
+    cmd.cmdDraw(36);
+  }
+  cmd.cmdPopDebugGroupLabel();
+
   cmd.cmdEndRendering();
 
   ctx.submit(cmd, ctx.getCurrentSwapchainTexture());
@@ -98,11 +126,6 @@ void Game::Destroy()
 
   ctx.waitIdle();
 
-  if (m_trianglePipeline != eng::kInvalidHandle)
-  {
-    ctx.destroyRenderPipeline(m_trianglePipeline);
-    m_trianglePipeline = eng::kInvalidHandle;
-  }
-
-  m_vertexBuffer.destroy();
+  m_pipelineSolid.reset();
+  m_pipelineWireframe.reset();
 }

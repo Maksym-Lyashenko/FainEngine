@@ -70,6 +70,9 @@ add_subdirectory(libs/KTX/lib)
 add_library(vma INTERFACE)
 target_include_directories(vma INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/vma/include)
 
+# GLM
+add_subdirectory(libs/glm)
+
 # Link libs 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   glfw 
@@ -80,5 +83,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   stb_image
   ktx
   vma
+  glm
  )
 

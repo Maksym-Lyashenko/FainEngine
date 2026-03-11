@@ -34,6 +34,7 @@ class Engine
   Application* GetApplication();
   IContext& GetVulkanContext();
   ShaderModule& GetShaderModule();
+  GLFWwindow* GetWindow();
 
  private:
   std::unique_ptr<Application> m_application;

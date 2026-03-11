@@ -36,7 +36,8 @@ void VulkanCommandBuffer::begin(VkCommandBuffer cmd)
 {
   m_cmd = cmd;
   m_isRendering = false;
-  m_activeColorImage = kInvalidHandle;
+  m_activeColorImage = TextureHandle{};
+  m_boundPipelineLayout = VK_NULL_HANDLE;
 }
 
 void VulkanCommandBuffer::finalizeIfNeeded()
@@ -50,13 +51,13 @@ void VulkanCommandBuffer::finalizeIfNeeded()
 void VulkanCommandBuffer::cmdBeginRendering(
     const BeginRenderingDesc& desc, const RenderingTargets& targets)
 {
-  if (targets.color[0] == kInvalidHandle)
+  if (!targets.color[0].valid())
   {
     throw std::runtime_error("cmdBeginRendering(): invalid color target");
   }
 
-  const uint32_t imageIndex = targets.color[0];
-  m_activeColorImage = imageIndex;
+  const uint32_t imageIndex = targets.color[0].id;
+  m_activeColorImage = targets.color[0];
 
   m_swapchain->transitionImageForColorAttachment(m_cmd, imageIndex);
 
@@ -88,6 +89,37 @@ void VulkanCommandBuffer::cmdBeginRendering(
   colorAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAtt.clearValue = clear;
 
+  VkRenderingAttachmentInfo depthAtt{};
+  if (desc.useDepth)
+  {
+    m_swapchain->transitionDepthForAttachment(m_cmd);
+
+    VkAttachmentLoadOp depthLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    switch (desc.depth.loadOp)
+    {
+      case LoadOp::Load:
+        depthLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+        break;
+      case LoadOp::Clear:
+        depthLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        break;
+      case LoadOp::DontCare:
+        depthLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        break;
+    }
+
+    VkClearValue depthClear{};
+    depthClear.depthStencil.depth = desc.depth.clearDepth;
+    depthClear.depthStencil.stencil = 0;
+
+    depthAtt.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAtt.imageView = m_swapchain->depthView();
+    depthAtt.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depthAtt.loadOp = depthLoadOp;
+    depthAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthAtt.clearValue = depthClear;
+  }
+
   VkRenderingInfo ri{};
   ri.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
   ri.renderArea.offset = {0, 0};
@@ -95,6 +127,10 @@ void VulkanCommandBuffer::cmdBeginRendering(
   ri.layerCount = 1;
   ri.colorAttachmentCount = 1;
   ri.pColorAttachments = &colorAtt;
+  if (desc.useDepth)
+  {
+    ri.pDepthAttachment = &depthAtt;
+  }
 
   vkCmdBeginRendering(m_cmd, &ri);
   m_isRendering = true;
@@ -110,13 +146,15 @@ void VulkanCommandBuffer::cmdBindRenderPipeline(RenderPipelineHandle pipeline)
 
   vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline);
 
+  m_boundPipelineLayout = m_pipelineProvider->getPipelineLayout(pipeline);
+
   const VkExtent2D extent = m_swapchain->extent();
 
   VkViewport vp{};
   vp.x = 0.0f;
-  vp.y = 0.0f;
+  vp.y = static_cast<float>(extent.height);
   vp.width = static_cast<float>(extent.width);
-  vp.height = static_cast<float>(extent.height);
+  vp.height = -static_cast<float>(extent.height);
   vp.minDepth = 0.0f;
   vp.maxDepth = 1.0f;
 
@@ -138,10 +176,45 @@ void VulkanCommandBuffer::cmdBindVertexBuffer(VkBuffer buffer, VkDeviceSize offs
   vkCmdBindVertexBuffers(m_cmd, 0, 1, &buffer, &offset);
 }
 
+void VulkanCommandBuffer::cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset)
+{
+  if (buffer == VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("cmdBindIndexBuffer(): invalid buffer");
+  }
+
+  vkCmdBindIndexBuffer(m_cmd, buffer, offset, VK_INDEX_TYPE_UINT16);
+}
+
+void VulkanCommandBuffer::cmdPushConstants(const void* data, uint32_t size, uint32_t offset)
+{
+  if (data == nullptr || size == 0)
+  {
+    throw std::runtime_error("cmdPushConstants(): invalid data");
+  }
+
+  if (m_boundPipelineLayout == VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("cmdPushConstants(): no pipeline layout is currently bound");
+  }
+
+  vkCmdPushConstants(m_cmd, m_boundPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, offset, size, data);
+}
+
 void VulkanCommandBuffer::cmdDraw(
     uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
   vkCmdDraw(m_cmd, vertexCount, instanceCount, firstVertex, firstInstance);
+}
+
+void VulkanCommandBuffer::cmdDrawIndexed(
+    uint32_t indexCount,
+    uint32_t instanceCount,
+    uint32_t firstIndex,
+    int32_t vertexOffset,
+    uint32_t firstInstance)
+{
+  vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
 void VulkanCommandBuffer::cmdPushDebugGroupLabel(const char* name, uint32_t rgba8)
@@ -180,10 +253,10 @@ void VulkanCommandBuffer::cmdEndRendering()
   }
 
   vkCmdEndRendering(m_cmd);
-  m_swapchain->transitionImageForPresent(m_cmd, m_activeColorImage);
+  m_swapchain->transitionImageForPresent(m_cmd, m_activeColorImage.id);
 
   m_isRendering = false;
-  m_activeColorImage = kInvalidHandle;
+  m_activeColorImage = TextureHandle{};
 }
 
 }  // namespace eng

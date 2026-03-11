@@ -20,7 +20,7 @@ set(ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
 # # Vulkan SDK
 # find_package(Vulkan REQUIRED)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Engine stb_image ktx)
+target_link_libraries(${PROJECT_NAME} PRIVATE Engine)
 
 if (MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /permissive-)

@@ -2,9 +2,12 @@
 
 #include <GLFW/glfw3.h>
 
+#include <vk_mem_alloc.h>
+
 #include <algorithm>
 #include <stdexcept>
 #include <vector>
+#include <array>
 
 namespace eng
 {
@@ -117,6 +120,7 @@ VulkanSwapchain::~VulkanSwapchain()
 void VulkanSwapchain::create(
     VkPhysicalDevice gpu,
     VkDevice device,
+    VulkanAllocator* allocator,
     VkSurfaceKHR surface,
     GLFWwindow* window,
     uint32_t graphicsFamily,
@@ -126,6 +130,7 @@ void VulkanSwapchain::create(
 {
   m_gpu = gpu;
   m_device = device;
+  m_allocator = allocator;
   m_surface = surface;
   m_graphicsFamily = graphicsFamily;
   m_presentFamily = presentFamily;
@@ -137,6 +142,7 @@ void VulkanSwapchain::create(
 
 void VulkanSwapchain::destroy()
 {
+  destroyDepthResources();
   for (VkSemaphore sem : m_renderCompleteSemaphores)
   {
     if (sem != VK_NULL_HANDLE)
@@ -268,6 +274,8 @@ void VulkanSwapchain::createInternal(GLFWwindow* window)
     vkCheck(vkCreateImageView(m_device, &viewCi, nullptr, &m_imageViews[i]), "vkCreateImageView");
   }
 
+  createDepthResources();
+
   VkSemaphoreCreateInfo semCi{};
   semCi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -328,6 +336,131 @@ void VulkanSwapchain::transitionImageForPresent(VkCommandBuffer cmd, uint32_t im
       0, nullptr, 0, nullptr, 1, &barrier);
 
   m_imageInitialized[imageIndex] = true;
+}
+
+void VulkanSwapchain::transitionDepthForAttachment(VkCommandBuffer cmd)
+{
+  if (m_depthImage == VK_NULL_HANDLE)
+  {
+    return;
+  }
+
+  if (m_depthInitialized)
+  {
+    return;
+  }
+
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = m_depthImage;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  barrier.subresourceRange.baseMipLevel = 0;
+  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseArrayLayer = 0;
+  barrier.subresourceRange.layerCount = 1;
+  barrier.srcAccessMask = 0;
+  barrier.dstAccessMask =
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+  vkCmdPipelineBarrier(
+      cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0, 0,
+      nullptr, 0, nullptr, 1, &barrier);
+
+  m_depthInitialized = true;
+}
+
+void VulkanSwapchain::createDepthResources()
+{
+  if (m_allocator == nullptr || !m_allocator->isValid())
+  {
+    throw std::runtime_error("VulkanSwapchain::createDepthResources(): invalid allocator");
+  }
+
+  m_depthFormat = chooseDepthFormat(m_gpu);
+
+  VkImageCreateInfo imageCi{};
+  imageCi.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageCi.imageType = VK_IMAGE_TYPE_2D;
+  imageCi.format = m_depthFormat;
+  imageCi.extent.width = m_extent.width;
+  imageCi.extent.height = m_extent.height;
+  imageCi.extent.depth = 1;
+  imageCi.mipLevels = 1;
+  imageCi.arrayLayers = 1;
+  imageCi.samples = VK_SAMPLE_COUNT_1_BIT;
+  imageCi.tiling = VK_IMAGE_TILING_OPTIMAL;
+  imageCi.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  imageCi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  imageCi.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  VmaAllocationCreateInfo allocCi{};
+  allocCi.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+  vkCheck(
+      vmaCreateImage(
+          m_allocator->handle(), &imageCi, &allocCi, &m_depthImage, &m_depthAllocation, nullptr),
+      "vmaCreateImage depth");
+
+  VkImageViewCreateInfo viewCi{};
+  viewCi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  viewCi.image = m_depthImage;
+  viewCi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  viewCi.format = m_depthFormat;
+  viewCi.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  viewCi.subresourceRange.baseMipLevel = 0;
+  viewCi.subresourceRange.levelCount = 1;
+  viewCi.subresourceRange.baseArrayLayer = 0;
+  viewCi.subresourceRange.layerCount = 1;
+
+  vkCheck(
+      vkCreateImageView(m_device, &viewCi, nullptr, &m_depthImageView), "vkCreateImageView depth");
+
+  m_depthInitialized = false;
+}
+
+void VulkanSwapchain::destroyDepthResources()
+{
+  if (m_depthImageView != VK_NULL_HANDLE)
+  {
+    vkDestroyImageView(m_device, m_depthImageView, nullptr);
+    m_depthImageView = VK_NULL_HANDLE;
+  }
+
+  if (m_depthImage != VK_NULL_HANDLE && m_depthAllocation != nullptr)
+  {
+    vmaDestroyImage(m_allocator->handle(), m_depthImage, m_depthAllocation);
+    m_depthImage = VK_NULL_HANDLE;
+    m_depthAllocation = nullptr;
+  }
+
+  m_depthFormat = VK_FORMAT_UNDEFINED;
+  m_depthInitialized = false;
+}
+
+VkFormat VulkanSwapchain::chooseDepthFormat(VkPhysicalDevice gpu)
+{
+  const std::array<VkFormat, 3> candidates = {
+      VK_FORMAT_D32_SFLOAT,
+      VK_FORMAT_D32_SFLOAT_S8_UINT,
+      VK_FORMAT_D24_UNORM_S8_UINT,
+  };
+
+  for (VkFormat format : candidates)
+  {
+    VkFormatProperties props{};
+    vkGetPhysicalDeviceFormatProperties(gpu, format, &props);
+
+    if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0)
+    {
+      return format;
+    }
+  }
+
+  throw std::runtime_error("No suitable depth format found");
 }
 
 }  // namespace eng

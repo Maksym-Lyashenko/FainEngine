@@ -133,4 +133,9 @@ ShaderModule& Engine::GetShaderModule()
   return m_shaderModule;
 }
 
+GLFWwindow* Engine::GetWindow()
+{
+  return m_window;
+}
+
 }  // namespace eng

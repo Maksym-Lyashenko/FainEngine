@@ -72,33 +72,33 @@ ShaderModuleHandle VulkanPipelineCache::createShaderModule(const ShaderModuleDes
   vkCheck(vkCreateShaderModule(m_device, &ci, nullptr, &shader), "vkCreateShaderModule");
 
   m_shaderModules.push_back(shader);
-  return static_cast<ShaderModuleHandle>(m_shaderModules.size() - 1);
+  return ShaderModuleHandle{static_cast<uint32_t>(m_shaderModules.size() - 1)};
 }
 
 void VulkanPipelineCache::destroyShaderModule(ShaderModuleHandle handle)
 {
-  if (handle >= m_shaderModules.size())
+  if (handle.id >= m_shaderModules.size())
   {
     return;
   }
 
-  if (m_shaderModules[handle] == VK_NULL_HANDLE)
+  if (m_shaderModules[handle.id] == VK_NULL_HANDLE)
   {
     return;
   }
 
-  vkDestroyShaderModule(m_device, m_shaderModules[handle], nullptr);
-  m_shaderModules[handle] = VK_NULL_HANDLE;
+  vkDestroyShaderModule(m_device, m_shaderModules[handle.id], nullptr);
+  m_shaderModules[handle.id] = VK_NULL_HANDLE;
 }
 
 RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipelineDesc& desc)
 {
-  if (desc.smVert >= m_shaderModules.size() || m_shaderModules[desc.smVert] == VK_NULL_HANDLE)
+  if (desc.smVert.id >= m_shaderModules.size() || m_shaderModules[desc.smVert.id] == VK_NULL_HANDLE)
   {
     throw std::runtime_error("createRenderPipeline(): invalid vertex shader handle");
   }
 
-  if (desc.smFrag >= m_shaderModules.size() || m_shaderModules[desc.smFrag] == VK_NULL_HANDLE)
+  if (desc.smFrag.id >= m_shaderModules.size() || m_shaderModules[desc.smFrag.id] == VK_NULL_HANDLE)
   {
     throw std::runtime_error("createRenderPipeline(): invalid fragment shader handle");
   }
@@ -115,8 +115,42 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   stages[1].module = m_shaderModules[desc.smFrag];
   stages[1].pName = "main";
 
+  VkSpecializationInfo specInfo{};
+  if (!desc.specialization.entries.empty() && desc.specialization.data != nullptr &&
+      desc.specialization.dataSize > 0)
+  {
+    specInfo.mapEntryCount = static_cast<uint32_t>(desc.specialization.entries.size());
+    specInfo.pMapEntries = desc.specialization.entries.data();
+    specInfo.dataSize = desc.specialization.dataSize;
+    specInfo.pData = desc.specialization.data;
+
+    if (desc.specialization.stage == VK_SHADER_STAGE_VERTEX_BIT)
+    {
+      stages[0].pSpecializationInfo = &specInfo;
+    }
+    else if (desc.specialization.stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+    {
+      stages[1].pSpecializationInfo = &specInfo;
+    }
+  }
+
+  VkPushConstantRange pushRange{};
+  VkPushConstantRange* pushRangePtr = nullptr;
+  uint32_t pushRangeCount = 0;
+
+  if (desc.pushConstantSize > 0 && desc.pushConstantStages != 0)
+  {
+    pushRange.stageFlags = desc.pushConstantStages;
+    pushRange.offset = 0;
+    pushRange.size = desc.pushConstantSize;
+    pushRangePtr = &pushRange;
+    pushRangeCount = 1;
+  }
+
   VkPipelineLayoutCreateInfo layoutCi{};
   layoutCi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutCi.pushConstantRangeCount = pushRangeCount;
+  layoutCi.pPushConstantRanges = pushRangePtr;
 
   VkPipelineLayout layout = VK_NULL_HANDLE;
   vkCheck(vkCreatePipelineLayout(m_device, &layoutCi, nullptr, &layout), "vkCreatePipelineLayout");
@@ -151,6 +185,14 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   msaa.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   msaa.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+  VkPipelineDepthStencilStateCreateInfo ds{};
+  ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  ds.depthTestEnable = desc.depthTestEnable ? VK_TRUE : VK_FALSE;
+  ds.depthWriteEnable = desc.depthWriteEnable ? VK_TRUE : VK_FALSE;
+  ds.depthCompareOp = desc.depthCompareOp;
+  ds.depthBoundsTestEnable = VK_FALSE;
+  ds.stencilTestEnable = VK_FALSE;
+
   VkPipelineColorBlendAttachmentState blendAtt{};
   blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -175,6 +217,7 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   renderingCi.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
   renderingCi.colorAttachmentCount = 1;
   renderingCi.pColorAttachmentFormats = desc.colorFormats.data();
+  renderingCi.depthAttachmentFormat = desc.depthFormat;
 
   VkGraphicsPipelineCreateInfo pipeCi{};
   pipeCi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -191,6 +234,7 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   pipeCi.layout = layout;
   pipeCi.renderPass = VK_NULL_HANDLE;
   pipeCi.subpass = 0;
+  pipeCi.pDepthStencilState = &ds;
 
   VkPipeline pipeline = VK_NULL_HANDLE;
   VkResult result =
@@ -202,47 +246,47 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   }
 
   m_pipelines.push_back({layout, pipeline});
-  return static_cast<RenderPipelineHandle>(m_pipelines.size() - 1);
+  return RenderPipelineHandle{static_cast<uint32_t>(m_pipelines.size() - 1)};
 }
 
 void VulkanPipelineCache::destroyRenderPipeline(RenderPipelineHandle handle)
 {
-  if (handle >= m_pipelines.size())
+  if (handle.id >= m_pipelines.size())
   {
     return;
   }
 
-  if (m_pipelines[handle].pipeline != VK_NULL_HANDLE)
+  if (m_pipelines[handle.id].pipeline != VK_NULL_HANDLE)
   {
-    vkDestroyPipeline(m_device, m_pipelines[handle].pipeline, nullptr);
-    m_pipelines[handle].pipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(m_device, m_pipelines[handle.id].pipeline, nullptr);
+    m_pipelines[handle.id].pipeline = VK_NULL_HANDLE;
   }
 
-  if (m_pipelines[handle].layout != VK_NULL_HANDLE)
+  if (m_pipelines[handle.id].layout != VK_NULL_HANDLE)
   {
-    vkDestroyPipelineLayout(m_device, m_pipelines[handle].layout, nullptr);
-    m_pipelines[handle].layout = VK_NULL_HANDLE;
+    vkDestroyPipelineLayout(m_device, m_pipelines[handle.id].layout, nullptr);
+    m_pipelines[handle.id].layout = VK_NULL_HANDLE;
   }
 }
 
 VkPipeline VulkanPipelineCache::getPipeline(RenderPipelineHandle handle) const
 {
-  if (handle >= m_pipelines.size() || m_pipelines[handle].pipeline == VK_NULL_HANDLE)
+  if (handle.id >= m_pipelines.size() || m_pipelines[handle.id].pipeline == VK_NULL_HANDLE)
   {
     throw std::runtime_error("getPipeline(): invalid pipeline handle");
   }
 
-  return m_pipelines[handle].pipeline;
+  return m_pipelines[handle.id].pipeline;
 }
 
 VkPipelineLayout VulkanPipelineCache::getPipelineLayout(RenderPipelineHandle handle) const
 {
-  if (handle >= m_pipelines.size() || m_pipelines[handle].layout == VK_NULL_HANDLE)
+  if (handle.id >= m_pipelines.size() || m_pipelines[handle.id].layout == VK_NULL_HANDLE)
   {
     throw std::runtime_error("getPipelineLayout(): invalid pipeline handle");
   }
 
-  return m_pipelines[handle].layout;
+  return m_pipelines[handle.id].layout;
 }
 
 }  // namespace eng

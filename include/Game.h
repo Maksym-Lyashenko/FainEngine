@@ -1,8 +1,9 @@
 #pragma once
 
-#include <eng.h>
+#include "Application.h"
+#include "eng.h"
 
-class Game : public eng::Application
+class Game final : public eng::Application
 {
  public:
   bool Init() override;
@@ -10,13 +11,6 @@ class Game : public eng::Application
   void Destroy() override;
 
  private:
-  struct Vertex
-  {
-    float position[2];
-    float color[3];
-  };
-
- private:
-  eng::RenderPipelineHandle m_trianglePipeline = eng::kInvalidHandle;
-  eng::VulkanBuffer m_vertexBuffer;
+  eng::Holder<eng::RenderPipelineHandle> m_pipelineSolid;
+  eng::Holder<eng::RenderPipelineHandle> m_pipelineWireframe;
 };

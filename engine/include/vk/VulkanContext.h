@@ -42,6 +42,8 @@ class IContext
   virtual VkFormat getSwapchainFormat() const = 0;
   virtual VkExtent2D getSwapchainExtent() const = 0;
   virtual TextureHandle getCurrentSwapchainTexture() const = 0;
+
+  virtual VkFormat getDepthFormat() const = 0;
 };
 
 std::unique_ptr<IContext> createVulkanContextWithSwapchain(

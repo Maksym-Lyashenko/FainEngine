@@ -210,6 +210,7 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     m_swapchain.create(
         m_gpu,
         m_device,
+        &m_allocator,
         m_surface,
         m_window,
         m_graphicsFamily,
@@ -287,7 +288,7 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     vkCheck(vkEndCommandBuffer(frame.cmd), "vkEndCommandBuffer");
 
     const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    const VkSemaphore renderComplete = m_swapchain.renderCompleteSemaphore(presentTexture);
+    const VkSemaphore renderComplete = m_swapchain.renderCompleteSemaphore(presentTexture.id);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -302,7 +303,7 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     vkCheck(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.inFlight), "vkQueueSubmit");
 
     const VkSwapchainKHR swapchain = m_swapchain.handle();
-    const uint32_t imageIndex = presentTexture;
+    const uint32_t imageIndex = presentTexture.id;
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -363,7 +364,17 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
   VkExtent2D getSwapchainExtent() const override { return m_swapchain.extent(); }
 
-  TextureHandle getCurrentSwapchainTexture() const override { return m_currentImageIndex; }
+  TextureHandle getCurrentSwapchainTexture() const override
+  {
+    return TextureHandle{m_currentImageIndex};
+  }
+
+  VkFormat getDepthFormat() const override { return m_swapchain.depthFormat(); }
+
+  VkPipelineLayout getPipelineLayout(RenderPipelineHandle handle) const override
+  {
+    return m_pipelineCache.getPipelineLayout(handle);
+  }
 
  private:
   VkPipeline getPipeline(RenderPipelineHandle handle) const override
@@ -475,6 +486,17 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
       queueCreateInfos.push_back(qci);
     }
 
+    VkPhysicalDeviceFeatures supportedFeatures{};
+    vkGetPhysicalDeviceFeatures(m_gpu, &supportedFeatures);
+
+    if (supportedFeatures.fillModeNonSolid != VK_TRUE)
+    {
+      throw std::runtime_error("Selected GPU does not support fillModeNonSolid");
+    }
+
+    VkPhysicalDeviceFeatures enabledFeatures{};
+    enabledFeatures.fillModeNonSolid = VK_TRUE;
+
     VkPhysicalDeviceVulkan13Features vulkan13Features{};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.dynamicRendering = VK_TRUE;
@@ -490,6 +512,7 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     ci.pQueueCreateInfos = queueCreateInfos.data();
     ci.enabledExtensionCount = static_cast<uint32_t>(std::size(deviceExtensions));
     ci.ppEnabledExtensionNames = deviceExtensions;
+    ci.pEnabledFeatures = &enabledFeatures;
 
     vkCheck(vkCreateDevice(m_gpu, &ci, nullptr, &m_device), "vkCreateDevice");
 
