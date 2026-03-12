@@ -29,6 +29,14 @@ class VulkanUploadContext
       VulkanBuffer& dstBuffer,
       VkDeviceSize dstOffset = 0);
 
+  void uploadImage2D(
+      VulkanAllocator* allocator,
+      const void* data,
+      size_t sizeBytes,
+      VkImage dstImage,
+      uint32_t width,
+      uint32_t height);
+
  private:
   VkDevice m_device = VK_NULL_HANDLE;
   VkQueue m_graphicsQueue = VK_NULL_HANDLE;

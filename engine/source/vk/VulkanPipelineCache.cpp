@@ -149,6 +149,8 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
 
   VkPipelineLayoutCreateInfo layoutCi{};
   layoutCi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layoutCi.setLayoutCount = static_cast<uint32_t>(desc.descriptorSetLayouts.size());
+  layoutCi.pSetLayouts = desc.descriptorSetLayouts.data();
   layoutCi.pushConstantRangeCount = pushRangeCount;
   layoutCi.pPushConstantRanges = pushRangePtr;
 

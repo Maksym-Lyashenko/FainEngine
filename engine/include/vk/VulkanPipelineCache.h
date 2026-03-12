@@ -35,6 +35,8 @@ struct RenderPipelineDesc
 
   PipelineSpecializationDesc specialization{};
 
+  std::span<const VkDescriptorSetLayout> descriptorSetLayouts{};
+
   uint32_t pushConstantSize = 0;
   VkShaderStageFlags pushConstantStages = 0;
 

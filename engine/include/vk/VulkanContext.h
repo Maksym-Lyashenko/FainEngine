@@ -26,6 +26,14 @@ class IContext
  public:
   virtual ~IContext() = default;
 
+  virtual VkInstance instance() const = 0;
+  virtual VkPhysicalDevice physicalDevice() const = 0;
+  virtual VkDevice device() const = 0;
+  virtual VkQueue graphicsQueue() const = 0;
+  virtual uint32_t graphicsQueueFamily() const = 0;
+  virtual uint32_t minImageCount() const = 0;
+  virtual uint32_t imageCount() const = 0;
+
   virtual ICommandBuffer& acquireCommandBuffer() = 0;
   virtual void submit(ICommandBuffer& cmd, TextureHandle presentTexture) = 0;
   virtual void waitIdle() = 0;

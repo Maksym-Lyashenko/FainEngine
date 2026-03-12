@@ -259,6 +259,14 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     }
   }
 
+  VkInstance instance() const override { return m_instance; }
+  VkPhysicalDevice physicalDevice() const override { return m_gpu; }
+  VkDevice device() const override { return m_device; }
+  VkQueue graphicsQueue() const override { return m_graphicsQueue; }
+  uint32_t graphicsQueueFamily() const override { return m_graphicsFamily; }
+  uint32_t minImageCount() const override { return m_ci.framesInFlight; }
+  uint32_t imageCount() const override { return m_swapchain.imageCount(); }
+
   ICommandBuffer& acquireCommandBuffer() override
   {
     if (m_frameActive)

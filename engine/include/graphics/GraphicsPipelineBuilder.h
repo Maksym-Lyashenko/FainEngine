@@ -59,6 +59,13 @@ class GraphicsPipelineBuilder
     return *this;
   }
 
+  GraphicsPipelineBuilder& DescriptorSetLayout(VkDescriptorSetLayout layout)
+  {
+    m_descriptorSetLayouts[0] = layout;
+    m_desc.descriptorSetLayouts = std::span(m_descriptorSetLayouts.data(), 1);
+    return *this;
+  }
+
   GraphicsPipelineBuilder& Depth(
       VkFormat depthFormat,
       bool depthTestEnable = true,
@@ -135,6 +142,7 @@ class GraphicsPipelineBuilder
  private:
   IContext& m_ctx;
   RenderPipelineDesc m_desc{};
+  std::array<VkDescriptorSetLayout, 1> m_descriptorSetLayouts{};
 };
 
 }  // namespace eng

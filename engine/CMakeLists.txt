@@ -80,6 +80,9 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
 add_subdirectory(libs/assimp)
 
+#ImGui
+add_subdirectory(libs/imgui)
+
 # Link libs 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   glfw 
@@ -92,5 +95,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   vma
   glm
   assimp
+  imgui
  )
 

@@ -187,6 +187,22 @@ void VulkanCommandBuffer::cmdBindIndexBuffer(
   vkCmdBindIndexBuffer(m_cmd, buffer, offset, indexType);
 }
 
+void VulkanCommandBuffer::cmdBindDescriptorSet(VkDescriptorSet set, uint32_t setIndex)
+{
+  if (set == VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("cmdBindDescriptorSet(): invalid descriptor set");
+  }
+
+  if (m_boundPipelineLayout == VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("cmdBindDescriptorSet(): no pipeline layout is currently bound");
+  }
+
+  vkCmdBindDescriptorSets(
+      m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_boundPipelineLayout, setIndex, 1, &set, 0, nullptr);
+}
+
 void VulkanCommandBuffer::cmdSetDepthBias(float constantFactor, float slopeFactor, float clamp)
 {
   vkCmdSetDepthBias(m_cmd, constantFactor, clamp, slopeFactor);

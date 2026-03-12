@@ -10,8 +10,7 @@ class Game final : public eng::Application
   void Destroy() override;
 
  private:
-  eng::Holder<eng::RenderPipelineHandle> m_pipelineSolid;
-  eng::Holder<eng::RenderPipelineHandle> m_pipelineWireframe;
-
-  eng::StaticMesh<eng::VertexP3, uint32_t> m_mesh;
+  eng::ImGuiLayer m_imgui;
+  eng::Texture2D m_texture;
+  ImTextureID m_imguiTexture{};
 };
