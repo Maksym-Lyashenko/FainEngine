@@ -91,7 +91,11 @@ class ICommandBuffer
       const BeginRenderingDesc& desc, const RenderingTargets& targets) = 0;
   virtual void cmdBindRenderPipeline(RenderPipelineHandle pipeline) = 0;
   virtual void cmdBindVertexBuffer(VkBuffer buffer, VkDeviceSize offset = 0) = 0;
-  virtual void cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset = 0) = 0;
+
+  virtual void cmdBindIndexBuffer(
+      VkBuffer buffer, VkDeviceSize offset = 0, VkIndexType indexType = VK_INDEX_TYPE_UINT32) = 0;
+
+  virtual void cmdSetDepthBias(float constantFactor, float slopeFactor, float clamp = 0.0f) = 0;
 
   virtual void cmdPushConstants(const void* data, uint32_t size, uint32_t offset = 0) = 0;
 

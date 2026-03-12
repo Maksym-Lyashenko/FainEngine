@@ -47,6 +47,8 @@ struct RenderPipelineDesc
   VkPolygonMode fillMode = VK_POLYGON_MODE_FILL;
   VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
   VkFrontFace frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+  bool depthBiasEnable = false;
 };
 
 class VulkanPipelineCache

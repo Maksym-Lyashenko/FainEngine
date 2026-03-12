@@ -1,7 +1,7 @@
 #pragma once
 
 #include "vk/VulkanContext.h"
-#include "vk/ShaderModule.h"
+#include "graphics/ShaderModule.h"
 
 #include <memory>
 #include <chrono>

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Application.h"
 #include "eng.h"
 
 class Game final : public eng::Application
@@ -13,4 +12,6 @@ class Game final : public eng::Application
  private:
   eng::Holder<eng::RenderPipelineHandle> m_pipelineSolid;
   eng::Holder<eng::RenderPipelineHandle> m_pipelineWireframe;
+
+  eng::StaticMesh<eng::VertexP3, uint32_t> m_mesh;
 };

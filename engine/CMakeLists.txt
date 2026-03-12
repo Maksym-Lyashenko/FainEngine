@@ -73,6 +73,13 @@ target_include_directories(vma INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/vma/in
 # GLM
 add_subdirectory(libs/glm)
 
+# Assimp
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
+add_subdirectory(libs/assimp)
+
 # Link libs 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   glfw 
@@ -84,5 +91,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ktx
   vma
   glm
+  assimp
  )
 

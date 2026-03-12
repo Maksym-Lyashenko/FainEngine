@@ -31,7 +31,11 @@ class VulkanCommandBuffer final : public ICommandBuffer
   void cmdBeginRendering(const BeginRenderingDesc& desc, const RenderingTargets& targets) override;
   void cmdBindRenderPipeline(RenderPipelineHandle pipeline) override;
   void cmdBindVertexBuffer(VkBuffer buffer, VkDeviceSize offset = 0) override;
-  void cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset = 0) override;
+  void cmdBindIndexBuffer(
+      VkBuffer buffer,
+      VkDeviceSize offset = 0,
+      VkIndexType indexType = VK_INDEX_TYPE_UINT32) override;
+  void cmdSetDepthBias(float constantFactor, float slopeFactor, float clamp = 0.0f) override;
 
   void cmdPushConstants(const void* data, uint32_t size, uint32_t offset = 0) override;
 

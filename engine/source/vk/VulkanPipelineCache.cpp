@@ -176,6 +176,7 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   rs.depthClampEnable = VK_FALSE;
   rs.rasterizerDiscardEnable = VK_FALSE;
+  rs.depthBiasEnable = desc.depthBiasEnable ? VK_TRUE : VK_FALSE;
   rs.polygonMode = desc.fillMode;
   rs.cullMode = desc.cullMode;
   rs.frontFace = desc.frontFace;
@@ -206,6 +207,7 @@ RenderPipelineHandle VulkanPipelineCache::createRenderPipeline(const RenderPipel
   const VkDynamicState dynamicStates[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
+      VK_DYNAMIC_STATE_DEPTH_BIAS,
   };
 
   VkPipelineDynamicStateCreateInfo dyn{};

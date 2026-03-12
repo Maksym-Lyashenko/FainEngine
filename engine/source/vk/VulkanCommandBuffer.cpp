@@ -176,14 +176,20 @@ void VulkanCommandBuffer::cmdBindVertexBuffer(VkBuffer buffer, VkDeviceSize offs
   vkCmdBindVertexBuffers(m_cmd, 0, 1, &buffer, &offset);
 }
 
-void VulkanCommandBuffer::cmdBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset)
+void VulkanCommandBuffer::cmdBindIndexBuffer(
+    VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType)
 {
   if (buffer == VK_NULL_HANDLE)
   {
     throw std::runtime_error("cmdBindIndexBuffer(): invalid buffer");
   }
 
-  vkCmdBindIndexBuffer(m_cmd, buffer, offset, VK_INDEX_TYPE_UINT16);
+  vkCmdBindIndexBuffer(m_cmd, buffer, offset, indexType);
+}
+
+void VulkanCommandBuffer::cmdSetDepthBias(float constantFactor, float slopeFactor, float clamp)
+{
+  vkCmdSetDepthBias(m_cmd, constantFactor, clamp, slopeFactor);
 }
 
 void VulkanCommandBuffer::cmdPushConstants(const void* data, uint32_t size, uint32_t offset)
