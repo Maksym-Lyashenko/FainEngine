@@ -38,6 +38,8 @@ class IContext
   virtual void submit(ICommandBuffer& cmd, TextureHandle presentTexture) = 0;
   virtual void waitIdle() = 0;
 
+  virtual void* gpuProfilerContext() const = 0;
+
   virtual ShaderModuleHandle createShaderModule(const ShaderModuleDesc& desc) = 0;
   virtual void destroyShaderModule(ShaderModuleHandle handle) = 0;
 

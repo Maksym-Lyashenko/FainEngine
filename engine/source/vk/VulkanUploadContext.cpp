@@ -1,5 +1,7 @@
 #include "vk/VulkanUploadContext.h"
 
+#include "debug/Profiler.h"
+
 #include <stdexcept>
 
 namespace eng
@@ -109,6 +111,8 @@ void VulkanUploadContext::uploadBuffer(
     VulkanBuffer& dstBuffer,
     VkDeviceSize dstOffset)
 {
+  ENG_PROFILE_ZONE_N("VulkanUploadContext::uploadBuffer");
+
   if (allocator == nullptr || !allocator->isValid())
   {
     throw std::runtime_error("VulkanUploadContext::uploadBuffer(): invalid allocator");
@@ -160,6 +164,8 @@ void VulkanUploadContext::uploadImage2D(
     uint32_t width,
     uint32_t height)
 {
+  ENG_PROFILE_ZONE_N("VulkanUploadContext::uploadImage2D");
+
   if (allocator == nullptr || !allocator->isValid())
   {
     throw std::runtime_error("VulkanUploadContext::uploadImage2D(): invalid allocator");

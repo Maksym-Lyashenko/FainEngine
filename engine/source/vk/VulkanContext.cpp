@@ -4,6 +4,8 @@
 #include "vk/VulkanSwapchain.h"
 #include "vk/VulkanAllocator.h"
 #include "vk/VulkanUploadContext.h"
+#include "debug/Profiler.h"
+#include "debug/ProfilerVulkan.h"
 
 #include <GLFW/glfw3.h>
 
@@ -207,6 +209,8 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
     m_uploadContext.create(m_device, m_graphicsFamily, m_graphicsQueue);
 
+    createTracyGpuContext();
+
     m_swapchain.create(
         m_gpu,
         m_device,
@@ -235,6 +239,9 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     destroyFrames();
     m_swapchain.destroy();
     m_pipelineCache.destroy();
+
+    destroyTracyGpuContext();
+
     m_uploadContext.destroy();
     m_allocator.destroy();
 
@@ -269,6 +276,8 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
   ICommandBuffer& acquireCommandBuffer() override
   {
+    ENG_PROFILE_ZONE_N("VulkanContext acquireCommandBuffer()");
+
     if (m_frameActive)
     {
       return m_cmd;
@@ -280,6 +289,8 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
   void submit(ICommandBuffer& cmd, TextureHandle presentTexture) override
   {
+    ENG_PROFILE_ZONE_N("VulkanContext submit");
+
     if (&cmd != &m_cmd)
     {
       throw std::runtime_error("submit(): foreign command buffer");
@@ -293,6 +304,14 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
     FrameData& frame = m_frames[m_frameIndex];
 
     m_cmd.finalizeIfNeeded();
+
+#if defined(ENG_ENABLE_TRACY)
+    if (m_tracyVkCtx != nullptr)
+    {
+      TracyVkCollect(m_tracyVkCtx, frame.cmd);
+    }
+#endif
+
     vkCheck(vkEndCommandBuffer(frame.cmd), "vkEndCommandBuffer");
 
     const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -343,6 +362,8 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
       vkDeviceWaitIdle(m_device);
     }
   }
+
+  void* gpuProfilerContext() const override { return m_tracyVkCtx; }
 
   ShaderModuleHandle createShaderModule(const ShaderModuleDesc& desc) override
   {
@@ -590,6 +611,8 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
   void beginFrame()
   {
+    ENG_PROFILE_ZONE_N("VulkanContext begineFrame");
+
     FrameData& frame = m_frames[m_frameIndex];
 
     vkCheck(vkWaitForFences(m_device, 1, &frame.inFlight, VK_TRUE, UINT64_MAX), "vkWaitForFences");
@@ -635,6 +658,51 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
         vkGetDeviceProcAddr(m_device, "vkCmdEndDebugUtilsLabelEXT"));
   }
 
+  void createTracyGpuContext()
+  {
+#if defined(ENG_ENABLE_TRACY)
+    const VkCommandBuffer tracyCmd = m_uploadContext.commandBuffer();
+
+    if (tracyCmd == VK_NULL_HANDLE)
+    {
+      throw std::runtime_error("createTracyGpuContext(): invalid upload command buffer");
+    }
+
+#if defined(TRACY_VK_USE_SYMBOL_TABLE)
+    m_tracyVkCtx = TracyVkContextCalibrated(
+        m_instance,
+        m_gpu,
+        m_device,
+        m_graphicsQueue,
+        tracyCmd,
+        vkGetInstanceProcAddr,
+        vkGetDeviceProcAddr);
+#else
+    auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(
+        vkGetInstanceProcAddr(m_instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
+
+    auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(
+        vkGetDeviceProcAddr(m_device, "vkGetCalibratedTimestampsEXT"));
+
+    m_tracyVkCtx =
+        TracyVkContextCalibrated(m_gpu, m_device, m_graphicsQueue, tracyCmd, gpdctd, gct);
+#endif
+
+    TracyVkContextName(m_tracyVkCtx, "Graphics Queue", 14);
+#endif
+  }
+
+  void destroyTracyGpuContext()
+  {
+#if defined(ENG_ENABLE_TRACY)
+    if (m_tracyVkCtx != nullptr)
+    {
+      TracyVkDestroy(m_tracyVkCtx);
+      m_tracyVkCtx = nullptr;
+    }
+#endif
+  }
+
  private:
   GLFWwindow* m_window = nullptr;
   ContextCreateInfo m_ci{};
@@ -665,6 +733,10 @@ class VulkanContext final : public IContext, private IVulkanPipelineProvider
 
   PFN_vkCmdBeginDebugUtilsLabelEXT m_vkCmdBeginDebugUtilsLabelEXT = nullptr;
   PFN_vkCmdEndDebugUtilsLabelEXT m_vkCmdEndDebugUtilsLabelEXT = nullptr;
+
+#if defined(ENG_ENABLE_TRACY)
+  tracy::VkCtx* m_tracyVkCtx = nullptr;
+#endif
 };
 
 std::unique_ptr<IContext> createVulkanContextWithSwapchain(

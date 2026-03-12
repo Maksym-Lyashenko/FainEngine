@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Application.h"
 #include "eng.h"
 
 class Game final : public eng::Application
@@ -10,7 +11,6 @@ class Game final : public eng::Application
   void Destroy() override;
 
  private:
-  eng::ImGuiLayer m_imgui;
-  eng::Texture2D m_texture;
-  ImTextureID m_imguiTexture{};
+  eng::Holder<eng::RenderPipelineHandle> m_pipelineSolid;
+  eng::Holder<eng::RenderPipelineHandle> m_pipelineWireframe;
 };

@@ -87,6 +87,8 @@ class ICommandBuffer
  public:
   virtual ~ICommandBuffer() = default;
 
+  virtual VkCommandBuffer handle() const = 0;
+
   virtual void cmdBeginRendering(
       const BeginRenderingDesc& desc, const RenderingTargets& targets) = 0;
   virtual void cmdBindRenderPipeline(RenderPipelineHandle pipeline) = 0;

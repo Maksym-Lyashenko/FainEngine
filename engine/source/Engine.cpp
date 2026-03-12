@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include "Application.h"
+#include "debug/Profiler.h"
 
 #include <iostream>
 
@@ -17,6 +18,8 @@ Engine& Engine::GetInstance()
 
 bool Engine::Init(int width, int height, const char* name)
 {
+  ENG_PROFILE_ZONE_N("Engine::Init");
+
   if (!m_application)
   {
     return false;
@@ -83,6 +86,8 @@ bool Engine::Init(int width, int height, const char* name)
 
 void Engine::Run()
 {
+  ENG_PROFILE_ZONE_N("Engine::Run");
+
   if (!m_application)
   {
     return;
@@ -92,6 +97,8 @@ void Engine::Run()
 
   while (!glfwWindowShouldClose(m_window) && !m_application->NeedsToBeClosed())
   {
+    ENG_PROFILE_ZONE_N("Main Loop");
+
     glfwPollEvents();
 
     auto now = std::chrono::steady_clock::now();

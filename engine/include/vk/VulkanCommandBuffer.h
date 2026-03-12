@@ -57,7 +57,7 @@ class VulkanCommandBuffer final : public ICommandBuffer
   void cmdPopDebugGroupLabel() override;
   void cmdEndRendering() override;
 
-  VkCommandBuffer handle() const { return m_cmd; }
+  VkCommandBuffer handle() const override { return m_cmd; }
 
  private:
   VkDevice m_device = VK_NULL_HANDLE;

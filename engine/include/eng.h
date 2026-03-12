@@ -17,3 +17,4 @@
 #include "render/StaticMesh.h"
 #include "logger/Logger.h"
 #include "debug/ImGuiLayer.h"
+#include "debug/Profiler.h"

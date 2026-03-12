@@ -37,6 +37,8 @@ class VulkanUploadContext
       uint32_t width,
       uint32_t height);
 
+  VkCommandBuffer commandBuffer() const { return m_commandBuffer; }
+
  private:
   VkDevice m_device = VK_NULL_HANDLE;
   VkQueue m_graphicsQueue = VK_NULL_HANDLE;
