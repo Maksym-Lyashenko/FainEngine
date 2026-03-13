@@ -11,7 +11,13 @@ target_sources(Engine PRIVATE
 file(GLOB_RECURSE ENGINE_SRC CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp
 )
-target_sources(Engine PRIVATE ${ENGINE_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/libs/tracy/public/TracyClient.cpp)
+target_sources(Engine PRIVATE 
+  ${ENGINE_SRC} 
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/tracy/public/TracyClient.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot_items.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot_demo.cpp
+)
 
 target_include_directories(Engine PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -83,12 +89,21 @@ add_subdirectory(libs/assimp)
 # ImGui
 add_subdirectory(libs/imgui)
 
+target_sources(imgui PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui/imgui_demo.cpp
+)
+
 # Tracy
 target_include_directories(Engine PUBLIC libs/tracy/public)
 
 target_compile_definitions(Engine PUBLIC
     $<$<CONFIG:Debug>:TRACY_ENABLE>
     $<$<CONFIG:Debug>:ENG_ENABLE_TRACY>
+)
+
+# Implot
+target_include_directories(Engine PUBLIC
+  libs/implot
 )
 
 # Link libs 

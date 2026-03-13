@@ -3,6 +3,8 @@
 #include "Application.h"
 #include "eng.h"
 
+struct GLFWwindow;
+
 class Game final : public eng::Application
 {
  public:
@@ -11,6 +13,8 @@ class Game final : public eng::Application
   void Destroy() override;
 
  private:
-  eng::Holder<eng::RenderPipelineHandle> m_pipelineSolid;
-  eng::Holder<eng::RenderPipelineHandle> m_pipelineWireframe;
+  eng::ImGuiLayer m_imgui;
+  eng::FpsCounter m_fpsCounter{.5f};
+  GLFWwindow* m_window;
+  eng::IContext* m_ctx;
 };

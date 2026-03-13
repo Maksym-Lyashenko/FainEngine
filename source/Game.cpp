@@ -1,145 +1,97 @@
 #include "Game.h"
 
-#include "eng.h"
 #include "debug/ProfilerVulkan.h"
 
 #include <GLFW/glfw3.h>
-#include <glm/ext.hpp>
-#include <glm/glm.hpp>
-
-#include <array>
+#include <imgui.h>
+#include <implot.h>
 
 using glm::mat4;
 using glm::vec3;
 
 bool Game::Init()
 {
-  ENG_PROFILE_ZONE_N("Game::Init");
+  m_ctx = &eng::Engine::GetInstance().GetVulkanContext();
+  m_window = eng::Engine::GetInstance().GetWindow();
+  if (m_ctx == nullptr || m_window == nullptr)
+  {
+    return false;
+  }
 
-  eng::IContext& ctx = eng::Engine::GetInstance().GetVulkanContext();
+  m_imgui.create(*m_ctx, m_window, "assets/OpenSans-Light.ttf", 30.f);
 
-  auto vert = eng::ShaderLibrary::LoadModule(ctx, "source/main.vert.spv");
-  auto frag = eng::ShaderLibrary::LoadModule(ctx, "source/main.frag.spv");
-
-  m_pipelineSolid = eng::GraphicsPipelineBuilder(ctx)
-                        .Shaders(vert.get(), frag.get())
-                        .CullBack()
-                        .FillMode(VK_POLYGON_MODE_FILL)
-                        .PushConstants(sizeof(glm::mat4), VK_SHADER_STAGE_VERTEX_BIT)
-                        .Depth(ctx.getDepthFormat(), true, true, VK_COMPARE_OP_LESS)
-                        .Build();
-
-  const uint32_t isWireframe = 1;
-  const std::array<VkSpecializationMapEntry, 1> specEntries = {VkSpecializationMapEntry{
-      .constantID = 0,
-      .offset = 0,
-      .size = sizeof(uint32_t),
-  }};
-
-  m_pipelineWireframe =
-      eng::GraphicsPipelineBuilder(ctx)
-          .Shaders(vert.get(), frag.get())
-          .CullBack()
-          .FillMode(VK_POLYGON_MODE_LINE)
-          .PushConstants(sizeof(glm::mat4), VK_SHADER_STAGE_VERTEX_BIT)
-          .Depth(ctx.getDepthFormat(), true, false, VK_COMPARE_OP_LESS_OR_EQUAL)
-          .Specialization(
-              VK_SHADER_STAGE_FRAGMENT_BIT, specEntries, &isWireframe, sizeof(isWireframe))
-          .Build();
-
-  return m_pipelineSolid.valid() && m_pipelineWireframe.valid();
+  return m_imgui.isValid();
 }
 
 void Game::Update(float DeltaTime)
 {
-  ENG_PROFILE_ZONE_N("Game::Update");
+  // (void)DeltaTime;
 
-  (void)DeltaTime;
-
-  if (!m_pipelineSolid.valid() || !m_pipelineWireframe.valid())
+  if (m_ctx == nullptr || m_window == nullptr)
   {
     return;
   }
 
-  eng::IContext& ctx = eng::Engine::GetInstance().GetVulkanContext();
-
-  auto gpuCtx = static_cast<tracy::VkCtx*>(ctx.gpuProfilerContext());
-
-  GLFWwindow* window = eng::Engine::GetInstance().GetWindow();
-
-  if (window == nullptr)
-  {
-    return;
-  }
+  m_fpsCounter.tick(DeltaTime);
 
   int width = 0;
   int height = 0;
-  glfwGetFramebufferSize(window, &width, &height);
+  glfwGetFramebufferSize(m_window, &width, &height);
   if (width == 0 || height == 0)
   {
     return;
   }
 
-  const float ratio = static_cast<float>(width) / static_cast<float>(height);
-
-  const mat4 m = glm::rotate(
-      glm::translate(mat4(1.0f), vec3(0.0f, 0.0f, -3.5f)),
-      static_cast<float>(glfwGetTime()),
-      vec3(1.0f, 1.0f, 1.0f));
-
-  mat4 p = glm::perspective(glm::radians(45.0f), ratio, 0.1f, 1000.0f);
-
-  const mat4 mvp = p * m;
-
-  eng::ICommandBuffer& cmd = ctx.acquireCommandBuffer();
+  eng::ICommandBuffer& cmd = m_ctx->acquireCommandBuffer();
 
   eng::BeginRenderingDesc beginDesc{};
   beginDesc.color[0].loadOp = eng::LoadOp::Clear;
-  beginDesc.color[0].clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-
-  beginDesc.useDepth = true;
-  beginDesc.depth.loadOp = eng::LoadOp::Clear;
-  beginDesc.depth.clearDepth = 1.0f;
+  beginDesc.color[0].clearColor = {1.f, 1.f, 1.f, 1.f};
 
   eng::RenderingTargets targets{};
-  targets.color[0] = ctx.getCurrentSwapchainTexture();
-  {
-    ENG_PROFILE_ZONE_N("Build UI");
-    cmd.cmdBeginRendering(beginDesc, targets);
+  targets.color[0] = m_ctx->getCurrentSwapchainTexture();
 
-    cmd.cmdPushDebugGroupLabel("Solid cube", 0xff0000ff);
-    {
-      cmd.cmdBindRenderPipeline(m_pipelineSolid.get());
-      cmd.cmdPushConstants(mvp);
-      ENG_PROFILE_VK_ZONE(gpuCtx, cmd.handle(), "Solid cube");
-      cmd.cmdDraw(36);
-    }
-    cmd.cmdPopDebugGroupLabel();
-  }
+  cmd.cmdBeginRendering(beginDesc, targets);
+
+  m_imgui.beginFrame();
+
+  if (const ImGuiViewport* v = ImGui::GetMainViewport())
   {
-    cmd.cmdPushDebugGroupLabel("Wireframe cube", 0xff0000ff);
-    {
-      cmd.cmdBindRenderPipeline(m_pipelineWireframe.get());
-      cmd.cmdPushConstants(mvp);
-      ENG_PROFILE_VK_ZONE(gpuCtx, cmd.handle(), "Wireframe cube");
-      cmd.cmdDraw(36);
-    }
-    cmd.cmdPopDebugGroupLabel();
+    ImGui::SetNextWindowPos(
+        {v->WorkPos.x + v->WorkSize.x - 15.f, v->WorkPos.y + 15.f}, ImGuiCond_Always, {1.f, 0.f});
   }
+
+  ImGui::SetNextWindowBgAlpha(.3f);
+  ImGui::SetNextWindowSize(ImVec2(ImGui::CalcTextSize("FPS:________").x, 0.f));
+
+  if (ImGui::Begin(
+          "##FPS",
+          nullptr,
+          ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+              ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove))
+  {
+    ImGui::Text("FPS : %i", static_cast<int>(m_fpsCounter.getFPS()));
+    ImGui::Text("Ms  : %.1f", m_fpsCounter.getMs());
+  }
+  ImGui::End();
+
+  ImPlot::ShowDemoWindow();
+  ImGui::ShowDemoWindow();
+
+  m_imgui.render(cmd);
+
   cmd.cmdEndRendering();
-
-  {
-    ENG_PROFILE_ZONE_N("Submit Frame");
-    ctx.submit(cmd, ctx.getCurrentSwapchainTexture());
-  }
+  m_ctx->submit(cmd, m_ctx->getCurrentSwapchainTexture());
 }
 
 void Game::Destroy()
 {
-  eng::IContext& ctx = eng::Engine::GetInstance().GetVulkanContext();
-
-  ctx.waitIdle();
-
-  m_pipelineSolid.reset();
-  m_pipelineWireframe.reset();
+  if (m_ctx != nullptr)
+  {
+    m_ctx->waitIdle();
+  }
+  m_imgui.destroy();
+  m_ctx = nullptr;
+  m_window = nullptr;
 }

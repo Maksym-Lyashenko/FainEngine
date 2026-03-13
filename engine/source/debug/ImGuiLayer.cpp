@@ -2,9 +2,9 @@
 
 #include "vk/VulkanCommandBuffer.h"
 
-#include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <implot.h>
 
 #include <GLFW/glfw3.h>
 
@@ -56,7 +56,7 @@ ImGuiLayer::~ImGuiLayer()
   destroy();
 }
 
-void ImGuiLayer::create(IContext& ctx, GLFWwindow* window)
+void ImGuiLayer::create(IContext& ctx, GLFWwindow* window, const char* fontPath, float fontSize)
 {
   if (m_ctx != nullptr)
   {
@@ -74,6 +74,18 @@ void ImGuiLayer::create(IContext& ctx, GLFWwindow* window)
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGui::StyleColorsDark();
+
+  ImPlot::CreateContext();
+
+  ImGuiIO& io = ImGui::GetIO();
+
+  if (fontPath != nullptr && fontPath[0] != '\0')
+  {
+    if (io.Fonts->AddFontFromFileTTF(fontPath, fontSize) == nullptr)
+    {
+      throw std::runtime_error(std::string("Failed to load ImGui font: ") + fontPath);
+    }
+  }
 
   VkDescriptorPoolSize poolSizes[] = {
       {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
@@ -136,6 +148,7 @@ void ImGuiLayer::destroy()
 
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
+  ImPlot::DestroyContext();
   ImGui::DestroyContext();
 
   if (m_descriptorPool != VK_NULL_HANDLE)

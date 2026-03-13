@@ -4,8 +4,8 @@
 
 #include "graphics/Texture2D.h"
 
-#include <imgui.h>
 #include <vulkan/vulkan.h>
+#include <imgui.h>
 
 struct GLFWwindow;
 
@@ -20,7 +20,8 @@ class ImGuiLayer
   ImGuiLayer(const ImGuiLayer&) = delete;
   ImGuiLayer& operator=(const ImGuiLayer&) = delete;
 
-  void create(IContext& ctx, GLFWwindow* window);
+  void create(
+      IContext& ctx, GLFWwindow* window, const char* fontPath = nullptr, float fontSize = 18.f);
   void destroy();
 
   void beginFrame();

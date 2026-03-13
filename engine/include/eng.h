@@ -18,3 +18,4 @@
 #include "logger/Logger.h"
 #include "debug/ImGuiLayer.h"
 #include "debug/Profiler.h"
+#include "debug/FpsCounter.h"
