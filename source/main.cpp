@@ -20,18 +20,31 @@ bool EnsureDirectoryExists(const std::filesystem::path& dirPath)
 
 int main()
 {
-  EnsureDirectoryExists(".cache");
-
-  Game* game = new Game();
-  eng::Engine& engine = eng::Engine::GetInstance();
-  engine.SetApplication(game);
-
-  if (engine.Init(1280, 720, "Fain Engine"))
+  try
   {
-    engine.Run();
-  }
+    EnsureDirectoryExists(".cache");
 
-  engine.Destroy();
+    Game* game = new Game();
+    eng::Engine& engine = eng::Engine::GetInstance();
+    engine.SetApplication(game);
+
+    if (engine.Init(1280, 720, "Fain Engine"))
+    {
+      engine.Run();
+    }
+
+    engine.Destroy();
+  }
+  catch (const std::exception& e)
+  {
+    std::cerr << "Unhandled exeption: " << e.what() << '\n';
+    return 1;
+  }
+  catch (...)
+  {
+    std::cerr << "Unhandled exeption\n";
+    return 1;
+  }
 
   return 0;
 }

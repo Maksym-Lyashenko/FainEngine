@@ -1,35 +1,29 @@
-//
-#version 460 core
+#version 450
 
-layout(push_constant) uniform PerFrameData {
-	mat4 mvp;
+layout(set = 0, binding = 0) uniform PerFrameData
+{
+    mat4 uModel;
+    mat4 uView;
+    mat4 uProj;
+    vec4 uCameraPos;
 };
 
-layout (constant_id = 0) const bool isWireframe = false;
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec2 inUV;
 
-layout (location=0) out vec3 color;
+layout(location = 0) out vec3 outWorldPos;
+layout(location = 1) out vec3 outWorldNormal;
+layout(location = 2) out vec2 outUV;
 
-const vec3 pos[8] = vec3[8](
-	vec3(-1.0,-1.0, 1.0), vec3( 1.0,-1.0, 1.0), vec3( 1.0, 1.0, 1.0), vec3(-1.0, 1.0, 1.0),
-	vec3(-1.0,-1.0,-1.0), vec3( 1.0,-1.0,-1.0), vec3( 1.0, 1.0,-1.0), vec3(-1.0, 1.0,-1.0)
-);
+void main()
+{
+    vec4 worldPos = uModel * vec4(inPosition, 1.0);
+    mat3 normalMatrix = mat3(transpose(inverse(uModel)));
 
-const vec3 col[8] = vec3[8](
-	vec3( 1.0, 0.0, 0.0), vec3( 0.0, 1.0, 0.0), vec3( 0.0, 0.0, 1.0), vec3( 1.0, 1.0, 0.0),
-	vec3( 1.0, 1.0, 0.0), vec3( 0.0, 0.0, 1.0), vec3( 0.0, 1.0, 0.0), vec3( 1.0, 0.0, 0.0)
-);
+    outWorldPos = worldPos.xyz;
+    outWorldNormal = normalize(normalMatrix * inNormal);
+    outUV = inUV;
 
-const uint indices[36] = uint[36](
-	0, 1, 2, 2, 3, 0, // front
-	1, 5, 6, 6, 2, 1, // right
-	7, 6, 5, 5, 4, 7, // back
-	4, 0, 3, 3, 7, 4, // left
-	4, 5, 1, 1, 0, 4, // bottom
-	3, 2, 6, 6, 7, 3 // top
-);
-
-void main() {
-	uint idx = indices[gl_VertexIndex];
-	gl_Position = mvp * vec4(pos[idx], 1.0);
-	color = isWireframe ? vec3(0.0) : col[idx];
+    gl_Position = uProj * uView * worldPos;
 }

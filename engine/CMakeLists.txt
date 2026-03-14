@@ -17,6 +17,7 @@ target_sources(Engine PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot_items.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/libs/implot/implot_demo.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/utils/UtilsCubemap.cpp
 )
 
 target_include_directories(Engine PUBLIC
@@ -74,7 +75,9 @@ add_subdirectory(libs/KTX/lib)
 
 # vma
 add_library(vma INTERFACE)
-target_include_directories(vma INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/vma/include)
+target_include_directories(vma INTERFACE 
+${CMAKE_CURRENT_SOURCE_DIR}/libs/vma/include
+)
 
 # GLM
 add_subdirectory(libs/glm)
@@ -86,7 +89,7 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_NO_EXPORT ON CACHE BOOL "" FORCE)
 add_subdirectory(libs/assimp)
 
-# ImGui
+# ImGui 
 add_subdirectory(libs/imgui)
 
 target_sources(imgui PRIVATE

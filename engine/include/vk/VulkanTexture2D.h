@@ -24,6 +24,9 @@ class VulkanTexture2D
 
   void createRGBA8(IContext& ctx, uint32_t width, uint32_t height, const void* pixels);
 
+  void createCubeRGBA32F(
+      IContext& ctx, uint32_t faceWidth, uint32_t faceHeight, const void* pixels, size_t sizeBytes);
+
   void destroy();
 
   bool isValid() const { return m_image != VK_NULL_HANDLE; }

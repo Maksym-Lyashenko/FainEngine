@@ -248,4 +248,89 @@ void VulkanUploadContext::uploadImage2D(
       });
 }
 
+void VulkanUploadContext::uploadImageCube(
+    VulkanAllocator* allocator,
+    const void* data,
+    size_t sizeBytes,
+    VkImage dstImage,
+    uint32_t faceWidth,
+    uint32_t faceHeight)
+{
+  if (allocator == nullptr || !allocator->isValid())
+  {
+    throw std::runtime_error("VulkanUploadContext::uploadImageCube(): invalid allocator");
+  }
+
+  if (data == nullptr || sizeBytes == 0)
+  {
+    throw std::runtime_error("VulkanUploadContext::uploadImageCube(): invalid data");
+  }
+
+  VulkanBuffer staging;
+  staging.create(
+      allocator,
+      static_cast<VkDeviceSize>(sizeBytes),
+      VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      BufferMemoryUsage::CpuToGpu,
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
+  staging.upload(data, sizeBytes);
+
+  immediateSubmit(
+      [&](VkCommandBuffer cmd)
+      {
+        VkImageMemoryBarrier toTransfer{};
+        toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        toTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toTransfer.image = dstImage;
+        toTransfer.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toTransfer.subresourceRange.baseMipLevel = 0;
+        toTransfer.subresourceRange.levelCount = 1;
+        toTransfer.subresourceRange.baseArrayLayer = 0;
+        toTransfer.subresourceRange.layerCount = 6;
+        toTransfer.srcAccessMask = 0;
+        toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        vkCmdPipelineBarrier(
+            cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
+            0, nullptr, 1, &toTransfer);
+
+        VkBufferImageCopy copy{};
+        copy.bufferOffset = 0;
+        copy.bufferRowLength = 0;
+        copy.bufferImageHeight = 0;
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.mipLevel = 0;
+        copy.imageSubresource.baseArrayLayer = 0;
+        copy.imageSubresource.layerCount = 6;
+        copy.imageOffset = {0, 0, 0};
+        copy.imageExtent = {faceWidth, faceHeight, 1};
+
+        vkCmdCopyBufferToImage(
+            cmd, staging.handle(), dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+        VkImageMemoryBarrier toShaderRead{};
+        toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toShaderRead.image = dstImage;
+        toShaderRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toShaderRead.subresourceRange.baseMipLevel = 0;
+        toShaderRead.subresourceRange.levelCount = 1;
+        toShaderRead.subresourceRange.baseArrayLayer = 0;
+        toShaderRead.subresourceRange.layerCount = 6;
+        toShaderRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        toShaderRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(
+            cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+            nullptr, 0, nullptr, 1, &toShaderRead);
+      });
+}
+
 }  // namespace eng

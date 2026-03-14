@@ -37,6 +37,14 @@ class VulkanUploadContext
       uint32_t width,
       uint32_t height);
 
+  void uploadImageCube(
+      VulkanAllocator* allocator,
+      const void* data,
+      size_t sizeBytes,
+      VkImage dstImage,
+      uint32_t faceWidth,
+      uint32_t faceHeight);
+
   VkCommandBuffer commandBuffer() const { return m_commandBuffer; }
 
  private:

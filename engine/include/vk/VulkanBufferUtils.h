@@ -53,4 +53,25 @@ inline VulkanBuffer CreateStorageBuffer(IContext& ctx, std::span<const T> data)
       ctx, data.data(), data.size_bytes(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
+template <typename T>
+inline VulkanBuffer CreateUniformBuffer(IContext& ctx, const T* initialData = nullptr)
+{
+  static_assert(std::is_trivially_copyable_v<T>);
+
+  VulkanBuffer buffer;
+  buffer.create(
+      &ctx.allocator(),
+      sizeof(T),
+      VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+      BufferMemoryUsage::CpuToGpu,
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+
+  if (initialData != nullptr)
+  {
+    buffer.upload(initialData, sizeof(T));
+  }
+
+  return buffer;
+}
+
 }  // namespace eng

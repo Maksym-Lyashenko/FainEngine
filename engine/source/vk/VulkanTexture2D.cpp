@@ -161,6 +161,90 @@ void VulkanTexture2D::createRGBA8(
       height);
 }
 
+void VulkanTexture2D::createCubeRGBA32F(
+    IContext& ctx, uint32_t faceWidth, uint32_t faceHeight, const void* pixels, size_t sizeBytes)
+{
+  if (faceWidth == 0 || faceHeight == 0)
+  {
+    throw std::runtime_error("VulkanTexture2D::createCubeRGBA32F(): invalid dimensions");
+  }
+
+  if (pixels == nullptr || sizeBytes == 0)
+  {
+    throw std::runtime_error("VulkanTexture2D::createCubeRGBA32F(): invalid input");
+  }
+
+  if (m_image != VK_NULL_HANDLE)
+  {
+    throw std::runtime_error("VulkanTexture2D::createCubeRGBA32F(): texture already created");
+  }
+
+  m_allocator = &ctx.allocator();
+  m_device = ctx.device();
+  m_format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  m_width = faceWidth;
+  m_height = faceHeight;
+
+  VkImageCreateInfo imageCi{};
+  imageCi.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageCi.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+  imageCi.imageType = VK_IMAGE_TYPE_2D;
+  imageCi.format = m_format;
+  imageCi.extent.width = faceWidth;
+  imageCi.extent.height = faceHeight;
+  imageCi.extent.depth = 1;
+  imageCi.mipLevels = 1;
+  imageCi.arrayLayers = 6;
+  imageCi.samples = VK_SAMPLE_COUNT_1_BIT;
+  imageCi.tiling = VK_IMAGE_TILING_OPTIMAL;
+  imageCi.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  imageCi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  imageCi.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  VmaAllocationCreateInfo allocCi{};
+  allocCi.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+  vkCheck(
+      vmaCreateImage(m_allocator->handle(), &imageCi, &allocCi, &m_image, &m_allocation, nullptr),
+      "vmaCreateImage cubemap");
+
+  ctx.uploadContext().uploadImageCube(
+      &ctx.allocator(), pixels, sizeBytes, m_image, faceWidth, faceHeight);
+
+  VkImageViewCreateInfo viewCi{};
+  viewCi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  viewCi.image = m_image;
+  viewCi.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+  viewCi.format = m_format;
+  viewCi.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  viewCi.subresourceRange.baseMipLevel = 0;
+  viewCi.subresourceRange.levelCount = 1;
+  viewCi.subresourceRange.baseArrayLayer = 0;
+  viewCi.subresourceRange.layerCount = 6;
+
+  vkCheck(vkCreateImageView(m_device, &viewCi, nullptr, &m_imageView), "vkCreateImageView cubemap");
+
+  VkSamplerCreateInfo samplerCi{};
+  samplerCi.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerCi.magFilter = VK_FILTER_LINEAR;
+  samplerCi.minFilter = VK_FILTER_LINEAR;
+  samplerCi.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerCi.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerCi.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerCi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerCi.mipLodBias = 0.0f;
+  samplerCi.anisotropyEnable = VK_FALSE;
+  samplerCi.maxAnisotropy = 1.0f;
+  samplerCi.compareEnable = VK_FALSE;
+  samplerCi.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerCi.minLod = 0.0f;
+  samplerCi.maxLod = 0.0f;
+  samplerCi.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerCi.unnormalizedCoordinates = VK_FALSE;
+
+  vkCheck(vkCreateSampler(m_device, &samplerCi, nullptr, &m_sampler), "vkCreateSampler cubemap");
+}
+
 void VulkanTexture2D::destroy()
 {
   if (m_device != VK_NULL_HANDLE)
